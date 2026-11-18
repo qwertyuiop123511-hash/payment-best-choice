@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>お支払いベストチョイス計算機</title>
+<style>
+  body { font-family: sans-serif; margin: 0; background: #faf7f2; color: #222; }
+  header { padding: 20px 16px 4px; max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 21px; margin: 0 0 6px; }
+  p.sub { color: #666; margin: 0 0 14px; font-size: 13px; line-height: 1.6; }
+  main { max-width: 720px; margin: 0 auto; padding: 0 16px 32px; }
+  .cats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  button.cat { padding: 16px 10px; font-size: 16px; border: 1px solid #d8cfc0; border-radius: 12px; background: #fff; cursor: pointer; }
+  button.cat.on { background: #b03030; color: #fff; border-color: #b03030; }
+  #result { margin-top: 18px; }
+  .card { background: #fff; border: 1px solid #e5ded2; border-radius: 12px; padding: 16px; }
+  .best { font-size: 18px; font-weight: bold; }
+  .rate { color: #b03030; font-weight: bold; }
+  .row { margin-top: 10px; font-size: 14px; line-height: 1.7; }
+  .row b { display: inline-block; min-width: 5.5em; color: #555; }
+  .alt { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #ddd; font-size: 14px; line-height: 1.7; }
+  footer { max-width: 720px; margin: 0 auto; padding: 0 16px 28px; color: #999; font-size: 12px; line-height: 1.7; }
+</style>
+</head>
+<body>
+<header>
+  <h1>お支払いベストチョイス計算機</h1>
+  <p class="sub">お店の種類を選ぶと、「どの払い方が一番お得か」の目安が出ます。還元率は条件をすべて満たしたときの最大目安です。事前エントリーなどの条件も必ずセットで確認してください。</p>
+</header>
+<main>
+  <div class="cats" id="cats"></div>
+  <div id="result"></div>
+</main>
+<footer>
+  ※ 2026年11月時点の公開プログラム情報をもとにした目安です。還元率・対象店舗・条件は変わることがあるので、利用前に各カード会社の公式情報で確認してください。<br>
+  ※ 「最大」の数字は、家族登録・住宅ローン契約・指定金額の引き落とし設定など、条件の積み上げをすべて満たした場合の上限です。当てはまらない条件がある場合は、その分下がります。
+</footer>
+<script>
+const DATA = {
+  "コンビニ": {
+    best: "三井住友カード（NL）のスマホタッチ決済",
+    rate: "最大9%",
+    pre: "家族ポイントへの事前登録（家族の登録で+2%）",
+    how: "スマホのタッチ決済かモバイルオーダーのみ対象。カード現物のタッチは2025年12月以降、対象外",
+    alt: "三菱UFJカードのポイントアップ対象店舗なら、そちらも候補（最大13%・条件の積み上げ次第）。対象かどうかは公式の対象店舗一覧で確認を。"
+  },
+  "回転寿司": {
+    best: "三菱UFJカード（カード現物）",
+    rate: "最大13%",
+    pre: "MDCアプリで対象プログラムに事前エントリー＋支払口座を三菱UFJ銀行に設定",
+    how: "スシロー・くら寿司は電子マネー不可のためカード現物が確実。スマホタッチは上乗せ対象外（通常分のみ）。還元の対象は毎月16日〜翌月15日の対象店舗利用・合計5万円まで",
+    alt: "三井住友カード（NL）は回転寿司が対象外。くら寿司は楽天ポイントカードの提示で+0.5%が付く。"
+  },
+  "スーパー（オーケー）": {
+    best: "三菱UFJカード",
+    rate: "最大13%（月の対象枠5万円まで）",
+    pre: "MDCアプリで対象プログラムに事前エントリー＋支払口座を三菱UFJ銀行に設定",
+    how: "カード現物かQUICPay。スマホタッチは上乗せ対象外",
+    alt: "月の対象枠（5万円）を使い切ったあとの食料品は、現金＋オーケー会員カードが無難。"
+  },
+  "楽天市場": {
+    best: "楽天カード＋SPU・キャンペーンの併用",
+    rate: "通常1%＋SPU倍率",
+    pre: "「5と0のつく日」などのキャンペーンは事前エントリー必須のことが多い",
+    how: "買い回り（お買い物マラソン等）はエントリーしてから購入するのが前提",
+    alt: "高額な買い物ほど、キャンペーン開催日に寄せるかどうかで差が出る。"
+  }
+};
+const catsEl = document.getElementById('cats');
+const resEl = document.getElementById('result');
+Object.keys(DATA).forEach(name => {
+  const b = document.createElement('button');
+  b.className = 'cat'; b.textContent = name;
+  b.addEventListener('click', () => {
+    document.querySelectorAll('button.cat').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    const d = DATA[name];
+    resEl.innerHTML = '';
+    const card = document.createElement('div'); card.className = 'card';
+    const rows = [
+      ['おすすめ', '<span class="best"></span>'],
+      ['還元の目安', '<span class="rate"></span>'],
+      ['事前アクション', ''],
+      ['払い方の縛り', ''],
+    ];
+    const title = document.createElement('div');
+    title.innerHTML = 'おすすめ：<span class="best"></span>（<span class="rate"></span>）';
+    title.querySelector('.best').textContent = d.best;
+    title.querySelector('.rate').textContent = d.rate;
+    card.appendChild(title);
+    [['事前アクション', d.pre], ['払い方の縛り', d.how]].forEach(([k, v]) => {
+      const r = document.createElement('div'); r.className = 'row';
+      const bb = document.createElement('b'); bb.textContent = k;
+      r.appendChild(bb); r.appendChild(document.createTextNode(v));
+      card.appendChild(r);
+    });
+    const alt = document.createElement('div'); alt.className = 'alt';
+    alt.textContent = '次点・注意：' + d.alt;
+    card.appendChild(alt);
+    resEl.appendChild(card);
+  });
+  catsEl.appendChild(b);
+});
+</script>
+</body>
+</html>
